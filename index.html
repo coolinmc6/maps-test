@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title></title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.3.1/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.3.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+    </style>
+</head>
+<body>
+  <div id='map'></div>
+  <script>
+    //
+    // Original Tutorial Source: https://docs.mapbox.com/help/tutorials/make-a-heatmap-with-mapbox-gl-js/
+    //
+    //  CM Description
+    //
+    // In this practice example, I have built a GeoJSON object that it actually can read!!
+    function buildGEOJSON() {
+      const features = [];
+      for(let i = 0; i < 100; i++) {
+        let feature = buildFeature();
+        features.push(feature);
+      }
+      return {
+        "type": "FeatureCollection",
+        "features": [...features]
+      }
+    }
+
+    function buildFeature() {
+
+      return {
+        "type": "Feature",
+        "properties": {
+          "dbh": Math.floor(Math.random() * 62 )
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [randomLat(), randomLng()]
+        }
+      }
+    }
+
+    function randomLat() {
+      return -79.999732 + ((Math.random()-0.5)*30);
+    }
+
+    function randomLng() {
+      return 40.4374 + ((Math.random()-0.5)*10);
+    }
+
+    var newGeoJSON = buildGEOJSON();
+
+    function addData(count) {
+      let array = [];
+      for(let i = 0; i < count; i++) {
+        array.push(buildFeature())
+      }
+      newGeoJSON.features.push(...array)
+    }
+
+    let cityState = {
+      allCities: [],
+      eastCoast: [],
+      totalPopulation: 0,
+      eastCoastPopulation: 0,
+      showCities: [],
+      simpleJSON: {},
+      geoJSON: {
+        "type": "FeatureCollection",
+        "features": []
+      }
+    }
+    fetch('./json/cities.json').then(res => res.json()).then(json => {
+      cityState.allCities = [...json]
+      json.map(city => {
+        cityState.totalPopulation += Number(city.population)
+        if(city.longitude > -90) {
+          cityState.eastCoast.push(city)
+          cityState.eastCoastPopulation += Number(city.population)
+        }
+      })
+      cityState.eastCoast.map(city => {
+        let places = Number(city.population / cityState.eastCoastPopulation) * 1000;
+        for(let i = 0; i < places; i++) {
+          cityState.showCities.push(city.name)
+        }
+      })
+      
+
+      buildFakeUsers(1000)
+      // console.log(cityState)
+    })
+
+    // I have the fake data - now what?
+    // Build first fake data set
+    //  - I need to generate 1000 fake users. That array of 1000 fake users will then be simplified into JSON with city name and coordinates
+    //  - Simple JSON will then be converted into geoJSON
+    //  - geoJSON will be populated
+    // Build Update Function
+    //  - ** Update function takes a number which is the number of fake users to show **
+    //  - I create X number of fake users
+    //  - iterate through the array to update our Simple JSON
+    //  - Simple JSON converted into geoJSON
+
+    function buildFakeUsers(num) {
+      let cityList = []
+      for(let i = 0; i < num; i++) {
+        let rand = Math.floor(Math.random() * cityState.showCities.length)
+        let city = cityState.showCities[rand]
+        cityList.push(city);
+      }
+
+      cityList.map(city => {
+        let cityObj = cityState.eastCoast.filter(c => c.name === city)[0]
+        if(cityState.simpleJSON[city]) {
+          cityState.simpleJSON[city].count++;
+        } else {
+          cityState.simpleJSON[city] = {
+            count: 1,
+            coords: [cityObj.longitude, cityObj.latitude]
+          }
+        }
+      })
+
+      // console.log(cityList)
+      convertGeoJSON();
+      // console.log(cityState);
+      // let cityObj = cityState.eastCoast.filter(c => c.name === city)[0]
+    }
+
+    function convertGeoJSON() {
+      let goodGeoJSON = {
+        "type": "FeatureCollection",
+        "features": []
+      }
+      for(let prop in cityState.simpleJSON) {
+        let obj = {
+          name: prop,
+          count: cityState.simpleJSON[prop].count,
+          coords: cityState.simpleJSON[prop].coords,
+        }
+        let good = buildCityFeature(obj);
+        goodGeoJSON.features.push(good)
+      }
+      cityState.geoJSON = goodGeoJSON;
+
+      
+    }
+
+    function buildCityFeature(obj) {
+      return {
+        "type": "Feature",
+        "properties": {
+          "count": obj.count,
+          "name": obj.name
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": obj.coords
+        }
+      }
+    }
+    
+
+    // #1 - Set Mapbox token, Instantiate Map
+    // mapboxgl.accessToken = 'pk.eyJ1IjoiY29vbGlubWM2IiwiYSI6ImNrMDZ0azk2ajN6cGczY212OTU2MTE5YWwifQ._dpWct8j09y0CJWXRrAaPQ';
+    mapboxgl.accessToken = 'pk.eyJ1IjoiYXJ0dXJvbXVub3oiLCJhIjoiY2swODR2NmlhNDYwaDNicDBlcnB6YmR0OSJ9.AgG7MN8DX1aFuG1DfbFr_Q'; // Arturo's access token
+    var map = new mapboxgl.Map({
+      container: 'map', // id of the div element
+      // style: 'mapbox://styles/mapbox/dark-v9',
+      style: 'mapbox://styles/arturomunoz/ck0gzxy7j07lc1cqu34qfy83w',
+      center: [-79.999732, 40.4374],
+      zoom: 4
+    });
+
+    // #2 - On Map Load, do stuff....
+    map.on('load', function() {
+      
+      // #2-b: Add Source
+      // This is my data source, a GeoJSON file. the 'addSource' method is here: https://docs.mapbox.com/mapbox-gl-js/api/#map#addsource
+      // It looks like each source needs to have a name (e.g. "trees") and then a source object, explained here: https://docs.mapbox.com/mapbox-gl-js/style-spec/#sources
+      // in this example, my type is 'geojson' and data is just the geojson file
+      // CM - I need to look at other data types and how to do that
+      
+      map.addSource('trees', { 
+        type: 'geojson',
+        // data: './json/trees.geojson'
+        data: cityState.geoJSON
+      });
+      
+      // #3 - Add Heatmap Layer
+      // Using the addLayer method (https://docs.mapbox.com/mapbox-gl-js/api/#map#addlayer) we create the heatmap.
+      // This is what the layer object (the first and main argument to the addLayer method) entails: https://docs.mapbox.com/mapbox-gl-js/style-spec/#layers
+      //
+      map.addLayer({
+        id: 'trees-heat',   // a unique id for the name of the layer
+        type: 'heatmap',    // the layer type - there is a list of distinct types available
+        source: 'trees',    // this is the name of the source for this layer
+        maxzoom: 15,        // maxzoom for the layer
+        paint: {
+          // increase weight as diameter breast height increases
+          'heatmap-weight': {
+            // property: 'dbh', // this is the property in the GeoJSON!! so I can tell it which item I care about
+            property: 'count',
+            type: 'exponential',
+            // type: 'linear',
+            stops: [
+              [1, 0],
+              [100, 0.2],
+              // [10, 0.2],
+              // [100, 0.4],
+              // [1000, 0.6],
+              [10000, 0.8]
+            ]
+          },
+          // increase intensity as zoom level increases
+          'heatmap-intensity': {
+            stops: [
+              [11, 10],
+              [15, 3]
+            ]
+          },
+          // assign color values be applied to points depending on their density
+          // source: https://docs.mapbox.com/mapbox-gl-js/style-spec/#paint-heatmap-heatmap-color
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            0, 'rgba(236,222,239,0)',
+            
+            // 0.2, 'rgb(208,209,230)',
+            // 0.4, 'rgb(166,189,219)',
+            // 0.6, 'rgb(103,169,207)',
+            0.8, 'rgb(216, 224, 34)',
+            // 0.8, 'rgb(28,144,153)'
+          ],
+          
+          // increase radius as zoom increases
+          'heatmap-radius': {
+            stops: [
+              [11, 8],
+              [15, 20]
+            ]
+          },
+          // decrease opacity to transition into the circle layer
+          'heatmap-opacity': {
+            default: 1,
+            stops: [
+              [14, 1],
+              [15, 0]
+            ]
+          },
+        }
+      }, 'waterway-label');
+
+      setInterval(() => {
+        buildFakeUsers(1000)
+        let src = map.getSource('trees');
+        src.setData(cityState.geoJSON)
+        console.log(cityState.simpleJSON)
+      }, 2000)
+
+
+      // add circle layer here
+      // map.addLayer({
+      //   id: 'trees-point',    // name of unique layer for the circles
+      //   type: 'circle',       // type - there are only so many types of layers, "circle" is one of them
+      //   source: 'trees',      // still using the GeoJSON source file we've called 'trees'
+      //   minzoom: 14,          // notice the minzoom is 14; so at lower zooms (further away), it's not visible
+      //   paint: {
+      //     // increase the radius of the circle as the zoom level and dbh value increases
+      //     'circle-radius': {
+      //       property: 'dbh',
+      //       type: 'exponential',
+      //       stops: [
+      //         [{ zoom: 15, value: 1 }, 5],
+      //         [{ zoom: 15, value: 62 }, 10],
+      //         [{ zoom: 22, value: 1 }, 20],
+      //         [{ zoom: 22, value: 62 }, 50],
+      //       ]
+      //     },
+      //     'circle-color': {
+      //       property: 'dbh',
+      //       type: 'exponential',
+      //       stops: [
+      //         [0, 'rgba(236,222,239,0)'],
+      //         [10, 'rgb(236,222,239)'],
+      //         [20, 'rgb(208,209,230)'],
+      //         [30, 'rgb(166,189,219)'],
+      //         [40, 'rgb(103,169,207)'],
+      //         [50, 'rgb(28,144,153)'],
+      //         [60, 'rgb(1,108,89)']
+      //       ]
+      //     },
+      //     'circle-stroke-color': 'white',
+      //     'circle-stroke-width': 1,
+      //     'circle-opacity': {
+      //       stops: [
+      //         [14, 0],
+      //         [15, 1]
+      //       ]
+      //     }
+      //   }
+      // }, 'waterway-label');
+
+      // Interactivity
+      map.on('click', 'trees-point', function(e) {
+        new mapboxgl.Popup()
+          .setLngLat(e.features[0].geometry.coordinates)
+          .setHTML('<b>DBH:</b> ' + e.features[0].properties.dbh)
+          .addTo(map);
+      });
+
+    });
+
+  </script>
+</body>
+</html>
