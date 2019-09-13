@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title></title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.3.1/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.3.1/mapbox-gl.css' rel='stylesheet' />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+    </style>
+</head>
+<body>
+  <div id='map'></div>
+  <script>
+    //
+    // Original Tutorial Source: https://docs.mapbox.com/help/tutorials/make-a-heatmap-with-mapbox-gl-js/
+    //
+    //  CM Description
+
+    let cityState = {
+      allCities: [],
+      eastCoast: [],
+      totalPopulation: 0,
+      eastCoastPopulation: 0,
+      showCities: [],
+      showEndings: ['ending1', 'ending1', 'ending1', 'ending1', 'ending1', 'ending1', 'ending2', 'ending2', 'ending2', 'ending2', 'ending3', 'ending3', 'ending3'],
+      simpleJSON: {},
+      ending1JSON: {},
+      ending2JSON: {},
+      ending3JSON: {},
+      geoJSON: {
+        "type": "FeatureCollection",
+        "features": []
+      },
+      ending1GeoJSON: {
+        "type": "FeatureCollection",
+        "features": []
+      },
+      ending2GeoJSON: {
+        "type": "FeatureCollection",
+        "features": []
+      },
+      ending3GeoJSON: {
+        "type": "FeatureCollection",
+        "features": []
+      }
+    }
+    fetch('./json/cities.json').then(res => res.json()).then(json => {
+      cityState.allCities = [...json]
+      json.map(city => {
+        cityState.totalPopulation += Number(city.population)
+        if(city.longitude > -90) {
+          cityState.eastCoast.push(city)
+          cityState.eastCoastPopulation += Number(city.population)
+        }
+      })
+      cityState.eastCoast.map(city => {
+        let places = Number(city.population / cityState.eastCoastPopulation) * 1000;
+        for(let i = 0; i < places; i++) {
+          cityState.showCities.push(city.name)
+        }
+      })
+      
+
+      buildFakeUsers(1000)
+      // console.log(cityState)
+    })
+
+    
+
+    // I have the fake data - now what?
+    // Build first fake data set
+    //  - I need to generate 1000 fake users. That array of 1000 fake users will then be simplified into JSON with city name and coordinates
+    //  - Simple JSON will then be converted into geoJSON
+    //  - geoJSON will be populated
+    // Build Update Function
+    //  - ** Update function takes a number which is the number of fake users to show **
+    //  - I create X number of fake users
+    //  - iterate through the array to update our Simple JSON
+    //  - Simple JSON converted into geoJSON
+
+    function buildFakeUsers(num) {
+      let cityList = []
+      for(let i = 0; i < num; i++) {
+        let rand = Math.floor(Math.random() * cityState.showCities.length)
+        let city = cityState.showCities[rand]
+        cityList.push(city);
+      }
+
+      cityList.map((city, i) => {
+        let cityObj = cityState.eastCoast.filter(c => c.name === city)[0]
+        
+        let ending = getRandomEnding();
+        let eJSON = ending + 'JSON';
+        
+        if(cityState.simpleJSON[city]) {
+          cityState.simpleJSON[city].count++;
+        } else {
+          cityState.simpleJSON[city] = {
+            count: 1,
+            coords: [cityObj.longitude, cityObj.latitude]
+          }
+        }
+        // Random endings
+        if(cityState[eJSON][city]) {
+          cityState[eJSON][city].count++
+        } else {
+          cityState[eJSON][city] = {
+            count: 1,
+            coords: [cityObj.longitude, cityObj.latitude]
+          }
+        }
+      })
+
+      convertGeoJSON();
+      universalConvertGeoJSON('ending1JSON')
+      universalConvertGeoJSON('ending2JSON')
+      universalConvertGeoJSON('ending3JSON')
+    }
+
+    function getRandomEnding() {
+      return cityState.showEndings[Math.floor(Math.random() * cityState.showEndings.length)]
+    }
+
+    function convertGeoJSON() {
+      let goodGeoJSON = {
+        "type": "FeatureCollection",
+        "features": []
+      }
+      for(let prop in cityState.simpleJSON) {
+        let obj = {
+          name: prop,
+          count: cityState.simpleJSON[prop].count,
+          coords: cityState.simpleJSON[prop].coords,
+        }
+        let good = buildCityFeature(obj);
+        goodGeoJSON.features.push(good)
+      }
+      cityState.geoJSON = goodGeoJSON;
+    }
+
+    function universalConvertGeoJSON(simpleJSON) {
+      let geoString = simpleJSON.slice(0, simpleJSON.length - 4) + 'GeoJSON'
+      let goodGeoJSON = {
+        "type": "FeatureCollection",
+        "features": []
+      }
+      for(let prop in cityState[simpleJSON]) {
+        let obj = {
+          name: prop,
+          count: cityState.simpleJSON[prop].count,
+          coords: cityState.simpleJSON[prop].coords,
+        }
+        let good = buildCityFeature(obj);
+        goodGeoJSON.features.push(good)
+      }
+      cityState[geoString] = goodGeoJSON
+    }
+
+    function buildCityFeature(obj) {
+      return {
+        "type": "Feature",
+        "properties": {
+          "count": obj.count,
+          "name": obj.name
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": obj.coords
+        }
+      }
+    }
+    
+
+    // #1 - Set Mapbox token, Instantiate Map
+    // mapboxgl.accessToken = 'pk.eyJ1IjoiY29vbGlubWM2IiwiYSI6ImNrMDZ0azk2ajN6cGczY212OTU2MTE5YWwifQ._dpWct8j09y0CJWXRrAaPQ';
+    mapboxgl.accessToken = 'pk.eyJ1IjoiYXJ0dXJvbXVub3oiLCJhIjoiY2swODR2NmlhNDYwaDNicDBlcnB6YmR0OSJ9.AgG7MN8DX1aFuG1DfbFr_Q'; // Arturo's access token
+    var map = new mapboxgl.Map({
+      container: 'map', // id of the div element
+      // style: 'mapbox://styles/mapbox/dark-v9',
+      style: 'mapbox://styles/arturomunoz/ck0gzxy7j07lc1cqu34qfy83w',
+      center: [-79.999732, 35.4374],
+      zoom: 4
+    });
+
+    // #2 - On Map Load, do stuff....
+    map.on('load', function() {
+      
+      // #2-b: Add Source
+      // This is my data source, a GeoJSON file. the 'addSource' method is here: https://docs.mapbox.com/mapbox-gl-js/api/#map#addsource
+      // It looks like each source needs to have a name (e.g. "trees") and then a source object, explained here: https://docs.mapbox.com/mapbox-gl-js/style-spec/#sources
+      // in this example, my type is 'geojson' and data is just the geojson file
+      // CM - I need to look at other data types and how to do that
+      
+      map.addSource('users', { 
+        type: 'geojson',
+        data: cityState.geoJSON
+      });
+
+      map.addSource('ending1', { 
+        type: 'geojson',
+        data: cityState.ending1GeoJSON
+      });
+      map.addSource('ending2', { 
+        type: 'geojson',
+        data: cityState.ending2GeoJSON
+      });
+      map.addSource('ending3', { 
+        type: 'geojson',
+        data: cityState.ending3GeoJSON
+      });
+
+      // Users
+      map.addLayer({
+        'id': 'user-dots',
+        'type': 'circle',
+        'source': 'users',
+        'paint': {
+          'circle-stroke-color': 'rgb(216, 224, 34)',
+          'circle-stroke-width': 1,
+          'circle-color': 'rgba(216, 224, 34, 0.4)',
+          'circle-radius': 1,
+          // 'circle-opacity': 0.5
+          'circle-radius': {
+            'property': 'count',
+            'type': 'exponential',
+            'stops': [
+              [{ zoom: 6, value: 1}, 1],
+              [{ zoom: 6, value: 10}, 2],
+              [{ zoom: 6, value: 100}, 3],
+              [{ zoom: 6, value: 250}, 4],
+              [{ zoom: 6, value: 500}, 5],
+              [{ zoom: 6, value: 1000}, 6],
+              [{ zoom: 6, value: 2000}, 7],
+              [{ zoom: 6, value: 4000}, 8],
+              [{ zoom: 6, value: 7000}, 9],
+              [{ zoom: 6, value: 10000}, 10],
+              [{ zoom: 10, value: 1}, 5],
+              // [{ zoom: 10, value: 10}, 8],
+              // [{ zoom: 10, value: 100}, 12],
+              // [{ zoom: 10, value: 250}, 16],
+              // [{ zoom: 10, value: 500}, 20],
+              // [{ zoom: 10, value: 1000}, 24],
+              // [{ zoom: 10, value: 2000}, 28],
+              // [{ zoom: 10, value: 4000}, 32],
+              // [{ zoom: 10, value: 7000}, 36],
+              [{ zoom: 10, value: 10000}, 100],
+            ]
+          }
+        }
+      })
+
+      // Ending 1
+      // map.addLayer({
+      //   'id': 'ending1-dots',
+      //   'type': 'circle',
+      //   'source': 'ending1',
+      //   'paint': {
+      //     'circle-stroke-color': 'rgb(216, 224, 34)',
+      //     'circle-stroke-width': 1,
+      //     'circle-color': 'rgba(216, 224, 34, 0.3)',
+      //     'circle-radius': 1,
+      //     // 'circle-opacity': 0.5
+      //     'circle-radius': {
+      //       'property': 'count',
+      //       'type': 'exponential',
+      //       'stops': [
+      //         [{ zoom: 6, value: 1}, 1],
+      //         [{ zoom: 6, value: 10}, 2],
+      //         [{ zoom: 6, value: 100}, 3],
+      //         [{ zoom: 6, value: 250}, 4],
+      //         [{ zoom: 6, value: 500}, 5],
+      //         [{ zoom: 6, value: 1000}, 6],
+      //         [{ zoom: 6, value: 2000}, 7],
+      //         [{ zoom: 6, value: 4000}, 8],
+      //         [{ zoom: 6, value: 7000}, 9],
+      //         [{ zoom: 6, value: 10000}, 10],
+      //       ]
+      //     }
+      //   }
+      // })
+
+      // // Ending 2
+      // map.addLayer({
+      //   'id': 'ending2-dots',
+      //   'type': 'circle',
+      //   'source': 'ending2',
+      //   'paint': {
+      //     'circle-stroke-color': 'rgb(1, 209, 212)',
+      //     'circle-stroke-width': 1,
+      //     'circle-color': 'rgba(1, 209, 212, 0.3)',
+      //     'circle-radius': 1,
+      //     // 'circle-opacity': 0.5
+      //     'circle-radius': {
+      //       'property': 'count',
+      //       'type': 'exponential',
+      //       'stops': [
+      //         [{ zoom: 6, value: 1}, 1],
+      //         [{ zoom: 6, value: 10}, 2],
+      //         [{ zoom: 6, value: 100}, 3],
+      //         [{ zoom: 6, value: 250}, 4],
+      //         [{ zoom: 6, value: 500}, 5],
+      //         [{ zoom: 6, value: 1000}, 6],
+      //         [{ zoom: 6, value: 2000}, 7],
+      //         [{ zoom: 6, value: 4000}, 8],
+      //         [{ zoom: 6, value: 7000}, 9],
+      //         [{ zoom: 6, value: 10000}, 10],
+      //       ]
+      //     }
+      //   }
+      // })
+
+      // // Ending 3
+      // map.addLayer({
+      //   'id': 'ending3-dots',
+      //   'type': 'circle',
+      //   'source': 'ending3',
+      //   'paint': {
+      //     'circle-stroke-color': 'rgb(216, 224, 34)',
+      //     'circle-stroke-width': 1,
+      //     'circle-color': 'rgba(216, 224, 34, 0.6)',
+      //     'circle-radius': 1,
+      //     // 'circle-opacity': 0.5
+      //     'circle-radius': {
+      //       'property': 'count',
+      //       'type': 'exponential',
+      //       'stops': [
+      //         [{ zoom: 6, value: 1}, 1],
+      //         [{ zoom: 6, value: 10}, 2],
+      //         [{ zoom: 6, value: 100}, 3],
+      //         [{ zoom: 6, value: 250}, 4],
+      //         [{ zoom: 6, value: 500}, 5],
+      //         [{ zoom: 6, value: 1000}, 6],
+      //         [{ zoom: 6, value: 2000}, 7],
+      //         [{ zoom: 6, value: 4000}, 8],
+      //         [{ zoom: 6, value: 7000}, 9],
+      //         [{ zoom: 6, value: 10000}, 10],
+      //       ]
+      //     }
+      //   }
+      // })
+      
+
+      setInterval(() => {
+        buildFakeUsers(1000)
+        let src = map.getSource('users');
+        src.setData(cityState.geoJSON)
+
+        // let e1 = map.getSource('ending1')
+        // let e2 = map.getSource('ending2')
+        // let e3 = map.getSource('ending3')
+        
+        // e1.setData(cityState.ending1GeoJSON)
+        // e2.setData(cityState.ending2GeoJSON)
+        // e3.setData(cityState.ending3GeoJSON)
+      }, 2000)
+
+    });
+
+  </script>
+</body>
+</html>
