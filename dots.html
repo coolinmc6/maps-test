@@ -10,6 +10,7 @@
       body {
         margin: 0;
         padding: 0;
+        /* position: relative; */
       }
 
       #map {
@@ -18,10 +19,94 @@
         bottom: 0;
         width: 100%;
       }
+      .stats {
+        position: absolute;
+        /* background-color: #ffffff11; */
+        border-radius: 14px;
+        width: 300px;
+        height: 500px;
+        right: 10%;
+        top: 10%;
+        z-index: 1000;
+      }
+
+      .stat-box {
+        position: relative;
+        text-align: center;
+        margin: 20px 0px;
+        border: 2px solid transparent;
+        padding: 3px;
+      }
+      .stat-box[data-current="1"] {
+        border-color: red;
+      }
+      .stat-box .circle {
+        border-radius: 40%;
+        color: black;
+        display: inline-block;
+        min-width: 70px;
+        font-size: 24px;
+        padding: 15px 0px;
+        margin-bottom: 5px;
+      }
+      .stat-box.stat-users .circle {
+        color: #fff;
+      }
+      .stat-box .title {
+        font-size: 18px;
+        color: #fff;
+      }
+
+
+      .stat-box.stat-ending-1 .circle {
+        background-color: rgb(216, 224, 34);
+      }
+      .stat-box.stat-ending-1 .title {
+        color: rgb(216, 224, 34);
+      }
+
+      .stat-box.stat-ending-2 .circle {
+        background-color: rgb(1, 209, 212);
+      }
+      .stat-box.stat-ending-2 .title {
+        color: rgb(1, 209, 212);
+      }
+
+
+      .stat-box.stat-ending-3 .circle {
+        background-color: rgb(127, 237, 125);
+      }
+
+      .stat-box.stat-ending-3 .title {
+        color: rgb(127, 237, 125);
+      }
+
     </style>
 </head>
 <body>
   <div id='map'></div>
+  <div class="stats">
+    <div class="stat-box stat-users" data-current="1">
+      <div class="circle">100%</div>
+      <div class="title">All Users</div>
+    </div>
+    <div class="stat-box stat-ending-1" data-current="0">
+      <div class="circle">45%</div>
+      <div class="title">Ending 1</div>
+    </div>
+    <div class="stat-box stat-ending-2" data-current="0">
+      <div class="circle">33%</div>
+      <div class="title">Ending 2</div>
+    </div>
+    <div class="stat-box stat-ending-3" data-current="0">
+      <div class="circle">22%</div>
+      <div class="title">Ending 3</div>
+    </div>
+  </div>
+
+  <script src="https://code.jquery.com/jquery-3.4.1.min.js"
+  integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+  crossorigin="anonymous"></script>
   <script>
     //
     // Original Tutorial Source: https://docs.mapbox.com/help/tutorials/make-a-heatmap-with-mapbox-gl-js/
@@ -35,10 +120,23 @@
       eastCoastPopulation: 0,
       showCities: [],
       showEndings: ['ending1', 'ending1', 'ending1', 'ending1', 'ending1', 'ending1', 'ending2', 'ending2', 'ending2', 'ending2', 'ending3', 'ending3', 'ending3'],
+      showMap: [
+        {name: 'users', geo: 'geoJSON', simple: 'simpleJSON', selector: 'users'},
+        {name: 'ending1', geo: 'ending1GeoJSON', simple: 'ending1JSON', selector: 'ending-1'},
+        {name: 'ending2', geo: 'ending1GeoJSON', simple: 'ending2JSON', selector: 'ending-2'},
+        {name: 'ending3', geo: 'ending1GeoJSON', simple: 'ending3JSON', selector: 'ending-3'}
+      ],
+      momentum: [],
       simpleJSON: {},
       ending1JSON: {},
       ending2JSON: {},
       ending3JSON: {},
+      endingStats: {
+        ending1: 0,
+        ending2: 0, 
+        ending3: 0, 
+        total: 0
+      },
       geoJSON: {
         "type": "FeatureCollection",
         "features": []
@@ -54,8 +152,15 @@
       ending3GeoJSON: {
         "type": "FeatureCollection",
         "features": []
-      }
+      },
+      nullGeoJSON: {
+        "type": "FeatureCollection",
+        "features": []
+      },
+      refresh: 0,
     }
+
+
     fetch('./json/cities.json').then(res => res.json()).then(json => {
       cityState.allCities = [...json]
       json.map(city => {
@@ -121,6 +226,8 @@
             coords: [cityObj.longitude, cityObj.latitude]
           }
         }
+        cityState.endingStats.total++;
+        cityState.endingStats[ending]++;
       })
 
       convertGeoJSON();
@@ -130,7 +237,35 @@
     }
 
     function getRandomEnding() {
+      let { momentum } = cityState;
+      if(momentum.length === 0) {
+        let endings = ['ending1', 'ending2', 'ending3'];
+        let rand = endings[Math.floor(Math.random() * endings.length)]
+        cityState.momentum = new Array(100).fill().map(d => rand);
+      }
+      if(Math.random() > 0.5) {
+        let ending = cityState.momentum.pop();
+        return ending;
+      }
       return cityState.showEndings[Math.floor(Math.random() * cityState.showEndings.length)]
+    }
+
+    function printStats() {
+      const { ending1, ending2, ending3, total } = cityState.endingStats;
+      let e1 = ending1 / total;
+      let e2 = ending2 / total;
+      let e3 = ending3 / total;
+      $('.stat-ending-1 .circle').empty().append((e1 * 100).toFixed(1) + '%')
+      $('.stat-ending-2 .circle').empty().append((e2 * 100).toFixed(1) + '%')
+      $('.stat-ending-3 .circle').empty().append((e3 * 100).toFixed(1) + '%')
+      let base = 8;
+      let multiplier = 36;
+      let f1 = Math.floor(e1 * multiplier) + base
+      let f2 = Math.floor(e2 * multiplier) + base
+      let f3 = Math.floor(e3 * multiplier) + base
+      $('.stat-ending-1 .circle').css('font-size', `${f1}px`)
+      $('.stat-ending-2 .circle').css('font-size', `${f2}px`)
+      $('.stat-ending-3 .circle').css('font-size', `${f3}px`)
     }
 
     function convertGeoJSON() {
@@ -181,6 +316,11 @@
         }
       }
     }
+
+    function printTopCities() {
+      console.table(cityState.simpleJSON)
+      console.table(cityState.ending1JSON)
+    }
     
 
     // #1 - Set Mapbox token, Instantiate Map
@@ -210,15 +350,18 @@
 
       map.addSource('ending1', { 
         type: 'geojson',
-        data: cityState.ending1GeoJSON
+        // data: cityState.ending1GeoJSON
+        data: cityState.nullGeoJSON
       });
       map.addSource('ending2', { 
         type: 'geojson',
-        data: cityState.ending2GeoJSON
+        // data: cityState.ending2GeoJSON
+        data: cityState.nullGeoJSON
       });
       map.addSource('ending3', { 
         type: 'geojson',
-        data: cityState.ending3GeoJSON
+        // data: cityState.ending3GeoJSON
+        data: cityState.nullGeoJSON
       });
 
       // Users
@@ -227,9 +370,9 @@
         'type': 'circle',
         'source': 'users',
         'paint': {
-          'circle-stroke-color': 'rgb(216, 224, 34)',
+          'circle-stroke-color': 'rgb(216, 150, 34)',
           'circle-stroke-width': 1,
-          'circle-color': 'rgba(216, 224, 34, 0.4)',
+          'circle-color': 'rgba(216, 150, 34, 0.4)',
           'circle-radius': 1,
           // 'circle-opacity': 0.5
           'circle-radius': {
@@ -261,101 +404,148 @@
         }
       })
 
+      // CONNECTOR
+      // - cycle through each of the endings
+      // - show a null GeoJSON object
+      // - every 10 seconds I can cycle through
+
       // Ending 1
-      // map.addLayer({
-      //   'id': 'ending1-dots',
-      //   'type': 'circle',
-      //   'source': 'ending1',
-      //   'paint': {
-      //     'circle-stroke-color': 'rgb(216, 224, 34)',
-      //     'circle-stroke-width': 1,
-      //     'circle-color': 'rgba(216, 224, 34, 0.3)',
-      //     'circle-radius': 1,
-      //     // 'circle-opacity': 0.5
-      //     'circle-radius': {
-      //       'property': 'count',
-      //       'type': 'exponential',
-      //       'stops': [
-      //         [{ zoom: 6, value: 1}, 1],
-      //         [{ zoom: 6, value: 10}, 2],
-      //         [{ zoom: 6, value: 100}, 3],
-      //         [{ zoom: 6, value: 250}, 4],
-      //         [{ zoom: 6, value: 500}, 5],
-      //         [{ zoom: 6, value: 1000}, 6],
-      //         [{ zoom: 6, value: 2000}, 7],
-      //         [{ zoom: 6, value: 4000}, 8],
-      //         [{ zoom: 6, value: 7000}, 9],
-      //         [{ zoom: 6, value: 10000}, 10],
-      //       ]
-      //     }
-      //   }
-      // })
+      map.addLayer({
+        'id': 'ending1-dots',
+        'type': 'circle',
+        'source': 'ending1',
+        'paint': {
+          'circle-stroke-color': 'rgb(216, 224, 34)',
+          'circle-stroke-width': 1,
+          'circle-color': 'rgba(216, 224, 34, 0.3)',
+          'circle-radius': 1,
+          // 'circle-opacity': 0.5
+          'circle-radius': {
+            'property': 'count',
+            'type': 'exponential',
+            'stops': [
+              [{ zoom: 6, value: 1}, 1],
+              [{ zoom: 6, value: 10}, 2],
+              [{ zoom: 6, value: 100}, 3],
+              [{ zoom: 6, value: 250}, 4],
+              [{ zoom: 6, value: 500}, 5],
+              [{ zoom: 6, value: 1000}, 6],
+              [{ zoom: 6, value: 2000}, 7],
+              [{ zoom: 6, value: 4000}, 8],
+              [{ zoom: 6, value: 7000}, 9],
+              [{ zoom: 6, value: 10000}, 10],
+            ]
+          }
+        }
+      })
 
       // // Ending 2
-      // map.addLayer({
-      //   'id': 'ending2-dots',
-      //   'type': 'circle',
-      //   'source': 'ending2',
-      //   'paint': {
-      //     'circle-stroke-color': 'rgb(1, 209, 212)',
-      //     'circle-stroke-width': 1,
-      //     'circle-color': 'rgba(1, 209, 212, 0.3)',
-      //     'circle-radius': 1,
-      //     // 'circle-opacity': 0.5
-      //     'circle-radius': {
-      //       'property': 'count',
-      //       'type': 'exponential',
-      //       'stops': [
-      //         [{ zoom: 6, value: 1}, 1],
-      //         [{ zoom: 6, value: 10}, 2],
-      //         [{ zoom: 6, value: 100}, 3],
-      //         [{ zoom: 6, value: 250}, 4],
-      //         [{ zoom: 6, value: 500}, 5],
-      //         [{ zoom: 6, value: 1000}, 6],
-      //         [{ zoom: 6, value: 2000}, 7],
-      //         [{ zoom: 6, value: 4000}, 8],
-      //         [{ zoom: 6, value: 7000}, 9],
-      //         [{ zoom: 6, value: 10000}, 10],
-      //       ]
-      //     }
-      //   }
-      // })
+      map.addLayer({
+        'id': 'ending2-dots',
+        'type': 'circle',
+        'source': 'ending2',
+        'paint': {
+          'circle-stroke-color': 'rgb(1, 209, 212)',
+          'circle-stroke-width': 1,
+          'circle-color': 'rgba(1, 209, 212, 0.3)',
+          'circle-radius': 1,
+          // 'circle-opacity': 0.5
+          'circle-radius': {
+            'property': 'count',
+            'type': 'exponential',
+            'stops': [
+              [{ zoom: 6, value: 1}, 1],
+              [{ zoom: 6, value: 10}, 2],
+              [{ zoom: 6, value: 100}, 3],
+              [{ zoom: 6, value: 250}, 4],
+              [{ zoom: 6, value: 500}, 5],
+              [{ zoom: 6, value: 1000}, 6],
+              [{ zoom: 6, value: 2000}, 7],
+              [{ zoom: 6, value: 4000}, 8],
+              [{ zoom: 6, value: 7000}, 9],
+              [{ zoom: 6, value: 10000}, 10],
+            ]
+          }
+        }
+      })
 
       // // Ending 3
-      // map.addLayer({
-      //   'id': 'ending3-dots',
-      //   'type': 'circle',
-      //   'source': 'ending3',
-      //   'paint': {
-      //     'circle-stroke-color': 'rgb(216, 224, 34)',
-      //     'circle-stroke-width': 1,
-      //     'circle-color': 'rgba(216, 224, 34, 0.6)',
-      //     'circle-radius': 1,
-      //     // 'circle-opacity': 0.5
-      //     'circle-radius': {
-      //       'property': 'count',
-      //       'type': 'exponential',
-      //       'stops': [
-      //         [{ zoom: 6, value: 1}, 1],
-      //         [{ zoom: 6, value: 10}, 2],
-      //         [{ zoom: 6, value: 100}, 3],
-      //         [{ zoom: 6, value: 250}, 4],
-      //         [{ zoom: 6, value: 500}, 5],
-      //         [{ zoom: 6, value: 1000}, 6],
-      //         [{ zoom: 6, value: 2000}, 7],
-      //         [{ zoom: 6, value: 4000}, 8],
-      //         [{ zoom: 6, value: 7000}, 9],
-      //         [{ zoom: 6, value: 10000}, 10],
-      //       ]
-      //     }
-      //   }
-      // })
+      map.addLayer({
+        'id': 'ending3-dots',
+        'type': 'circle',
+        'source': 'ending3',
+        'paint': {
+          'circle-stroke-color': 'rgb(127, 237, 125)',
+          'circle-stroke-width': 1,
+          'circle-color': 'rgba(127, 237, 125, 0.5)',
+          'circle-radius': 1,
+          // 'circle-opacity': 0.5
+          'circle-radius': {
+            'property': 'count',
+            'type': 'exponential',
+            'stops': [
+              [{ zoom: 6, value: 1}, 1],
+              [{ zoom: 6, value: 10}, 2],
+              [{ zoom: 6, value: 100}, 3],
+              [{ zoom: 6, value: 250}, 4],
+              [{ zoom: 6, value: 500}, 5],
+              [{ zoom: 6, value: 1000}, 6],
+              [{ zoom: 6, value: 2000}, 7],
+              [{ zoom: 6, value: 4000}, 8],
+              [{ zoom: 6, value: 7000}, 9],
+              [{ zoom: 6, value: 10000}, 10],
+            ]
+          }
+        }
+      })
       
 
       setInterval(() => {
         buildFakeUsers(1000)
-        let src = map.getSource('users');
-        src.setData(cityState.geoJSON)
+
+        if(cityState.refresh % 3 === 0)  {
+          // get active src
+          let obj = cityState.showMap.shift();
+          
+          // updateGeoJSON of active src
+          let src = map.getSource(obj.name);
+          universalConvertGeoJSON(obj.simple)
+          src.setData(cityState[obj.geo])
+
+          // null the other src's
+          cityState.showMap.map(item => {
+            let src = map.getSource(item.name);
+            cityState[item.json] = cityState.nullGeoJSON
+            src.setData(cityState[item.json]);
+          })
+
+          // update cityState
+          cityState.showMap = [...cityState.showMap, obj]
+
+
+          let obj2 = cityState.showMap[cityState.showMap.length - 1]
+          let sel = `.stat-${obj2.selector}`
+          $('.stat-box').attr('data-current', 0)
+          $(sel).attr('data-current', 1)
+          
+        } else {
+          let obj = cityState.showMap[0]
+          let src = map.getSource(obj.name);
+          universalConvertGeoJSON(obj.simple)
+          src.setData(cityState[obj.geo])
+          let obj2 = cityState.showMap[cityState.showMap.length - 1]
+          let sel = `.stat-${obj2.selector}`
+          $('.stat-box').attr('data-current', 0)
+          $(sel).attr('data-current', 1)
+        }
+        cityState.refresh++;
+
+        printStats();
+
+        
+
+        
+        
 
         // let e1 = map.getSource('ending1')
         // let e2 = map.getSource('ending2')
